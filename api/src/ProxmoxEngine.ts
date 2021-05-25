@@ -9,6 +9,7 @@ export interface ProxmoxEngineOptions {
     schema?: 'https' | 'http';
     username?: string;
     password: string;
+    secret?: boolean;
     authTimeout?: number;
     queryTimeout?: number;
 }
@@ -21,6 +22,7 @@ export class ProxmoxEngine implements ApiRequestable {
     public ticket?: string;
     private username: string;
     private password: string;
+    private secret: boolean;
     private host: string;
     private port: number;
     private schema: 'http' | 'https';
@@ -30,6 +32,7 @@ export class ProxmoxEngine implements ApiRequestable {
     constructor(options: ProxmoxEngineOptions) {
         this.username = options.username || 'root@pam';
         this.password = options.password;
+        this.secret = options.secret || false;
         this.host = options.host;
         this.port = options.port || 8006;
         this.schema = options.schema || 'https';
@@ -44,7 +47,7 @@ export class ProxmoxEngine implements ApiRequestable {
     }
 
     async doRequest(httpMethod: string, path: string, pathTemplate: string, params?: { [key: string]: any }, retries?: number): Promise<any> {
-        if (!this.ticket) {
+        if (!this.ticket && !this.secret) {
             await this.getTicket();
         }
         /**
@@ -57,11 +60,20 @@ export class ProxmoxEngine implements ApiRequestable {
                 }
             }
 
-        const options: HeadersInit = {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            cookie: `PVEAuthCookie=${this.ticket}`,
-            CSRFPreventionToken: this.CSRFPreventionToken as string
-        };
+        let options: HeadersInit = {};
+        
+        if(this.secret){
+            options = {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                Authorization: `PVEAPIToken=${this.username}=${this.password}`
+            };
+        }else{
+            options = {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                cookie: `PVEAuthCookie=${this.ticket}`,
+                CSRFPreventionToken: this.CSRFPreventionToken as string
+            };
+        }
 
         /**
          * Append parameters
